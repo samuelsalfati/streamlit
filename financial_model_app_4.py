@@ -21,16 +21,25 @@ patients_per_clinician_per_hour = st.sidebar.slider(
 )
 
 clinician_hourly_wage = st.sidebar.number_input(
-    "Clinician Hourly Wage ($)", min_value=10.0, max_value=60.0, value=24.04, step=1.0
+    "Clinician Hourly Wage ($)", min_value=10.0, max_value=120.0, value=24.04, step=1.0
 )
 
 use_nurse = st.sidebar.checkbox("Use Nurse(s)?", value=True)
 nurse_hourly_wage = 0.0
-NURSE_PER_X_CLINICIANS = 10
+NURSE_PER_X_PATIENTS = 100
 
 if use_nurse:
     nurse_hourly_wage = st.sidebar.number_input(
-        "Nurse Hourly Wage ($)", min_value=10.0, max_value=60.0, value=36.06, step=1.0
+        "Nurse Hourly Wage ($)", min_value=10.0, max_value=120.0, value=36.06, step=1.0
+    )
+
+use_doctor = st.sidebar.checkbox("Use Doctor(s)?", value=True)
+doctor_hourly_wage = 0.0
+DOCTOR_PER_X_NURSES = 100
+
+if use_doctor:
+    doctor_hourly_wage = st.sidebar.number_input(
+        "Doctor Hourly Wage ($)", min_value=10.0, max_value=120.0, value=60.0, step=1.0
     )
 
 # -------------------------------------
@@ -78,26 +87,16 @@ revenue_per_clinician_hour = sum_of_selected_codes * patients_per_clinician_per_
 total_revenue_per_hour = revenue_per_clinician_hour * clinicians_per_hour
 clinician_cost_per_hour = clinicians_per_hour * clinician_hourly_wage
 
-# Sidebar Toggle for Nurse-to-Clinician Ratio
-nurse_ratio_option = st.sidebar.selectbox(
-    "Select Nurse-to-Clinician Ratio",
-    options=["1 nurse per 10 clinicians", "1 nurse per 100 clinicians"]
-)
+# Calculate nurse costs as a fraction based on patient load
+num_patients_per_hour = clinicians_per_hour * patients_per_clinician_per_hour
+num_nurses = num_patients_per_hour / NURSE_PER_X_PATIENTS if use_nurse else 0
+nurse_cost_per_hour = num_nurses * nurse_hourly_wage
 
-# Determine nurse ratio based on the toggle
-if nurse_ratio_option == "1 nurse per 10 clinicians":
-    nurse_ratio = 10
-else:
-    nurse_ratio = 100
+# Calculate doctor costs as a fraction based on nurse load
+num_doctors = num_nurses / DOCTOR_PER_X_NURSES if use_doctor else 0
+doctor_cost_per_hour = num_doctors * doctor_hourly_wage
 
-# Ensure nurse_hourly_rate is always defined
-nurse_hourly_rate = nurse_hourly_wage if use_nurse else 0.0
-
-# Calculate the number of nurses and their total cost
-num_nurses = clinicians_per_hour / nurse_ratio if use_nurse else 0
-nurse_cost_per_hour = num_nurses * nurse_hourly_rate
-
-total_cost_per_hour = clinician_cost_per_hour + nurse_cost_per_hour
+total_cost_per_hour = clinician_cost_per_hour + nurse_cost_per_hour + doctor_cost_per_hour
 ebitda_per_hour = total_revenue_per_hour - total_cost_per_hour
 
 # -------------------------------------
@@ -113,29 +112,39 @@ col3.metric("EBITDA/Hour", f"${ebitda_per_hour:,.2f}")
 # -------------------------------------
 # 6) BAR CHART
 # -------------------------------------
-labels = ["Revenue/Hour", "Cost/Hour", "EBITDA/Hour"]
-values = [total_revenue_per_hour, total_cost_per_hour, ebitda_per_hour]
-colors = ["#5DADE2", "#F1948A", "#58D68D"]
+labels = ["Revenue", "Clinician Cost", "Nurse Cost", "Doctor Cost", "EBITDA"]
+values = [
+    total_revenue_per_hour,
+    clinician_cost_per_hour,
+    nurse_cost_per_hour,
+    doctor_cost_per_hour,
+    ebitda_per_hour,
+]
+colors = ["#5DADE2", "#F1948A", "#F7DC6F", "#58D68D", "#76D7C4"]
 
-fig, ax = plt.subplots(figsize=(6, 4), dpi=120)
+fig, ax = plt.subplots(figsize=(10, 6), dpi=120)
+
+# Create individual bars for each value
 bars = ax.bar(labels, values, color=colors, edgecolor="black", zorder=2)
 
+# Formatting
 ax.set_title(f"Hourly Economics for {selected_state} (GPCI: {gpci})", fontsize=14, weight="bold")
 ax.set_ylabel("USD ($)")
 ax.grid(axis='y', linestyle='--', alpha=0.7, zorder=0)
 
 for bar in bars:
     height = bar.get_height()
-    ax.annotate(
-        f"${height:,.2f}",
-        xy=(bar.get_x() + bar.get_width() / 2, height),
-        xytext=(0, 5),
-        textcoords="offset points",
-        ha='center',
-        va='bottom',
-        fontsize=10,
-        fontweight='bold'
-    )
+    if height > 0:
+        ax.annotate(
+            f"${height:,.2f}",
+            xy=(bar.get_x() + bar.get_width() / 2, height),
+            xytext=(0, 5),
+            textcoords="offset points",
+            ha='center',
+            va='bottom',
+            fontsize=10,
+            fontweight='bold'
+        )
 
 st.pyplot(fig)
 
@@ -173,12 +182,15 @@ Hourly Revenue Per Clinician = {revenue_per_clinician_hour:,.2f}
 
 ---
 
-#### Nurse-to-Clinician Ratio
-The selected nurse-to-clinician ratio is **1 nurse per {nurse_ratio} clinicians**.  
-Based on your input of **{clinicians_per_hour} clinicians per hour**, this translates to:
+#### Cost Breakdown
+- **Clinician Hourly Wage**: ${clinician_hourly_wage:,.2f}/hour
+- **Nurse Hourly Wage**: ${nurse_hourly_wage:,.2f}/hour
+- **Doctor Hourly Wage**: ${doctor_hourly_wage:,.2f}/hour
 
-- **Number of Nurses Required**: {num_nurses:.2f} nurse(s)
-- **Total Hourly Nurse Cost**: ${nurse_cost_per_hour:,.2f}/hour
+Based on your input:
+- **Clinician Cost**: ${clinician_cost_per_hour:,.2f}
+- **Nurse Cost**: ${nurse_cost_per_hour:,.2f}
+- **Doctor Cost**: ${doctor_cost_per_hour:,.2f}
 
 ---
 

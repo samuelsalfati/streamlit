@@ -1,7 +1,6 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
-import math
 
 # 1) Use a recognized built-in Matplotlib style
 plt.style.use("seaborn-v0_8-whitegrid")
@@ -79,8 +78,24 @@ revenue_per_clinician_hour = sum_of_selected_codes * patients_per_clinician_per_
 total_revenue_per_hour = revenue_per_clinician_hour * clinicians_per_hour
 clinician_cost_per_hour = clinicians_per_hour * clinician_hourly_wage
 
-num_nurses = clinicians_per_hour / NURSE_PER_X_CLINICIANS if use_nurse else 0
-nurse_cost_per_hour = num_nurses * nurse_hourly_wage
+# Sidebar Toggle for Nurse-to-Clinician Ratio
+nurse_ratio_option = st.sidebar.selectbox(
+    "Select Nurse-to-Clinician Ratio",
+    options=["1 nurse per 10 clinicians", "1 nurse per 100 clinicians"]
+)
+
+# Determine nurse ratio based on the toggle
+if nurse_ratio_option == "1 nurse per 10 clinicians":
+    nurse_ratio = 10
+else:
+    nurse_ratio = 100
+
+# Ensure nurse_hourly_rate is always defined
+nurse_hourly_rate = nurse_hourly_wage if use_nurse else 0.0
+
+# Calculate the number of nurses and their total cost
+num_nurses = clinicians_per_hour / nurse_ratio if use_nurse else 0
+nurse_cost_per_hour = num_nurses * nurse_hourly_rate
 
 total_cost_per_hour = clinician_cost_per_hour + nurse_cost_per_hour
 ebitda_per_hour = total_revenue_per_hour - total_cost_per_hour
@@ -113,7 +128,7 @@ for bar in bars:
     height = bar.get_height()
     ax.annotate(
         f"${height:,.2f}",
-        xy=(bar.get_x() + bar.get_width()/2, height),
+        xy=(bar.get_x() + bar.get_width() / 2, height),
         xytext=(0, 5),
         textcoords="offset points",
         ha='center',
@@ -125,67 +140,48 @@ for bar in bars:
 st.pyplot(fig)
 
 # -------------------------------------
-# 7) EBITDA GRAPH
+# 7) INTERPRETATION TEXT
 # -------------------------------------
-ebitda_fig, ebitda_ax = plt.subplots(figsize=(6, 4), dpi=120)
-
-ebitda_ax.bar(["EBITDA/Hour"], [ebitda_per_hour], color="#58D68D", edgecolor="black", zorder=2)
-
-ebitda_ax.set_title(f"EBITDA Breakdown for {selected_state} (GPCI: {gpci})", fontsize=14, weight="bold")
-ebitda_ax.set_ylabel("USD ($)")
-ebitda_ax.grid(axis='y', linestyle='--', alpha=0.7, zorder=0)
-
-height = ebitda_per_hour
-ebitda_ax.annotate(
-    f"${height:,.2f}",
-    xy=(0, height),
-    xytext=(0, 5),
-    textcoords="offset points",
-    ha='center',
-    va='bottom',
-    fontsize=10,
-    fontweight='bold'
-)
-
-st.pyplot(ebitda_fig)
-
-# -------------------------------------
-# 8) INTERPRETATION TEXT
-# -------------------------------------
-# Introductory Explanation
 st.write("""
 This tool models **clinician staffing and revenue generation** for Remote Patient Monitoring (RPM). 
-The model uses **recurring billing codes**, GPCI adjustments, and customizable staffing inputs 
-to provide an overview of revenue, costs, and EBITDA on an hourly basis. 
+It leverages recurring billing codes, GPCI adjustments, and customizable staffing parameters 
+to provide a detailed overview of revenue, costs, and EBITDA on an hourly basis. 
 
-Adjust the inputs in the sidebar to explore different scenarios and their financial impact.
+Use the inputs in the sidebar to experiment with different scenarios and visualize their financial outcomes.
 """)
 
 # Interpretation Text
 interpretation_text = f"""
-### Interpretation
+### Financial Insights
 
-For **{selected_state}** with a **GPCI adjustment** of **{gpci:.2f}**, 
-you selected **{patients_per_clinician_per_hour} patients per clinician per hour**.
-
-#### Hourly Revenue per Clinician
-The revenue per clinician-hour is calculated using the **sum of selected recurring codes**:
-
-\[
-\text{{Sum of Selected Codes}} ({sum_of_selected_codes:,.2f}) \times 
-\text{{Patients per Hour}} ({patients_per_clinician_per_hour}) = 
-{revenue_per_clinician_hour:,.2f}
-\]
+#### State-Specific Metrics
+In **{selected_state}**, the **Geographic Practice Cost Index (GPCI)** adjustment is **{gpci:.2f}**.  
+You have selected a workload of **{patients_per_clinician_per_hour} patients per clinician per hour**.
 
 ---
 
-### Nurse Ratio
+#### Hourly Revenue Per Clinician
+To calculate the hourly revenue per clinician, we multiply the sum of selected recurring billing codes by the patients served per hour:
 
-The nurse-to-clinician ratio is **1 nurse per 10 clinicians**. 
-With **{clinicians_per_hour} clinicians**, this implies:
+Hourly Revenue = Sum of Billing Codes × Patients Per Hour
 
-- **{num_nurses:.2f} nurse(s) required**
-- **Total Nurse Cost:** ${nurse_cost_per_hour:,.2f}/hour
+Using your inputs:
+- Sum of Billing Codes = {sum_of_selected_codes:,.2f}
+- Patients Per Hour = {patients_per_clinician_per_hour}
+
+Hourly Revenue Per Clinician = {revenue_per_clinician_hour:,.2f}
+
+---
+
+#### Nurse-to-Clinician Ratio
+The selected nurse-to-clinician ratio is **1 nurse per {nurse_ratio} clinicians**.  
+Based on your input of **{clinicians_per_hour} clinicians per hour**, this translates to:
+
+- **Number of Nurses Required**: {num_nurses:.2f} nurse(s)
+- **Total Hourly Nurse Cost**: ${nurse_cost_per_hour:,.2f}/hour
+
+---
+
+By adjusting the inputs in the sidebar, you can explore how changes in staffing or patient load affect revenue and costs, helping you make informed decisions for your RPM program.
 """
 st.markdown(interpretation_text)
-
